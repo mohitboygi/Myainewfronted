@@ -133,6 +133,7 @@ dialog::backdrop{background:rgba(2,3,10,.65);backdrop-filter:blur(4px)}
 .ac label{display:block;font-size:13px;color:var(--mu);margin:12px 0 4px}
 .ac input{width:100%;min-height:46px;padding:0 14px;border-radius:12px;border:1px solid var(--bd);background:rgba(0,0,0,.3);color:var(--tx);font:inherit}
 .ac input:focus{border-color:var(--cy)}.ac .otp{text-align:center;letter-spacing:10px;font:600 22px 'JetBrains Mono',monospace}
+.gb{display:flex;justify-content:center;margin:6px 0 12px;min-height:44px}
 .aerr{color:var(--er);font-size:13px;min-height:22px;margin:8px 0}
 .lnk{color:var(--cy);text-decoration:underline;min-height:40px;padding:0 4px}.lnk:disabled{color:var(--mu);text-decoration:none}
 .cmp .m{margin-bottom:12px}
@@ -148,6 +149,7 @@ aside.open{transform:none}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <canvas id="fx" aria-hidden="true"></canvas>
@@ -369,8 +371,8 @@ function profile(){const v=ses&&ses.verified;$("#pn").textContent=v?ses.name:"Gu
 function ready(){au.hidden=true;chats=loadChats();cur=null;renderList();renderMsgs();profile();toast("Welcome, "+ses.name)}
 function logout(){persist();ses=null;saveS();chats=[];cur=null;renderList();renderMsgs();profile();show("login")}
 function show(v){au.hidden=false;clearInterval(tick);const ph=ses&&ses.phone||"",E='<div id="ae" class="aerr" role="alert"></div>',tel=fld("a1","Mobile number","tel","+91 98765 43210",'autocomplete="tel"'),vp=p=>{if(!/^\+?\d{10,14}$/.test(p))throw Error("Enter a valid mobile number with country code, like +91 98765 43210.")};let h="";
- if(v==="login")h=`<h2>Welcome back</h2><p>Log in with your mobile number.</p>${tel}${fld("a2","Password","password","Your password",'autocomplete="current-password"')}${E}<button class="btn pri" id="ab" style="width:100%">Log in</button><p style="margin:14px 0 0;text-align:center">New here? <button class="lnk" data-v="signup">Create account</button></p>`;
- if(v==="signup")h=`<h2>Create your account</h2><p>We'll text a code to verify your number.</p>${fld("a0","Name","text","Your name",'autocomplete="name"')}${tel}${fld("a2","Password","password","At least 8 characters",'autocomplete="new-password"')}${E}<button class="btn pri" id="ab" style="width:100%">Create account</button><p style="margin:14px 0 0;text-align:center">Have an account? <button class="lnk" data-v="login">Log in</button></p>`;
+ if(v==="login")h=`<h2>Welcome back</h2><p>Sign in with Google or your mobile number.</p><div id="gbtn" class="gb"></div><p style="text-align:center;margin:0 0 4px">or</p>${tel}${fld("a2","Password","password","Your password",'autocomplete="current-password"')}${E}<button class="btn pri" id="ab" style="width:100%">Log in</button><p style="margin:14px 0 0;text-align:center">New here? <button class="lnk" data-v="signup">Create account</button></p>`;
+ if(v==="signup")h=`<h2>Create your account</h2><div id="gbtn" class="gb"></div><p style="text-align:center;margin:0 0 4px">or sign up with mobile</p>${fld("a0","Name","text","Your name",'autocomplete="name"')}${tel}${fld("a2","Password","password","At least 8 characters",'autocomplete="new-password"')}${E}<button class="btn pri" id="ab" style="width:100%">Create account</button><p style="margin:14px 0 0;text-align:center">Have an account? <button class="lnk" data-v="login">Log in</button></p>`;
  if(v==="otp")h=`<h2>Verify your mobile</h2><p>Enter the 6-digit code sent to ${esc(ph)}. Chat unlocks after verification.</p>${ENV.LIVE?"":'<p style="color:var(--wa)">Demo mode: use code 123456.</p>'}${fld("a1","Verification code","text","······",'class="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}${E}<button class="btn pri" id="ab" style="width:100%">Verify and continue</button><p style="margin:10px 0 0;text-align:center"><button class="lnk" id="rs"></button> <button class="lnk" data-v="out">Use a different number</button></p>`;
  const af=$("#af");af.innerHTML=h;const B=$("#ab");B.dataset.l=B.textContent;
  af.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>b.dataset.v==="out"?logout():show(b.dataset.v));
@@ -381,7 +383,21 @@ function show(v){au.hidden=false;clearInterval(tick);const ph=ses&&ses.phone||""
  if(v==="otp"){B.onclick=go(async()=>{const c=$("#a1").value.trim();if(!/^\d{6}$/.test(c))throw Error("Enter the 6-digit code.");const r=await api("verify-otp",{phone:ses.phone,code:c});ses={token:r.token,name:r.name||ses.name,phone:ses.phone,verified:true,admin:!!r.admin};saveS();ready()});
   const rs=$("#rs");let t=30;const f=()=>{rs.disabled=t>0;rs.textContent=t>0?`Resend code in ${t}s`:"Resend code";t--},st=()=>{t=30;clearInterval(tick);f();tick=setInterval(()=>{f();if(t<0)clearInterval(tick)},1000)};st();
   rs.onclick=async()=>{try{await api("send-otp",{phone:ses.phone});st();toast("Code sent")}catch(e){$("#ae").textContent=e.message}}}
- const f0=af.querySelector("input");f0&&f0.focus()}
+ const gb=$("#gbtn");if(gb)initGoogle(gb);
+ const f0=af.querySelector("input:not([type=hidden])");f0&&matchMedia("(hover:hover)").matches&&f0.focus()}
+let gcid=null;
+async function initGoogle(el){
+  const why=t=>{el.className="aerr";el.style.cssText="min-height:0;margin:0 0 8px;text-align:center";el.textContent=t};
+  if(!ENV.LIVE)return el.remove();
+  if(gcid===null){
+    try{const r=await fetch(AB+"/api/auth/config");if(!r.ok)throw Error("HTTP "+r.status);gcid=(await r.json()).google||""}
+    catch(e){return why("Google button: can't reach the backend ("+e.message+"). Check API_URL on line 6 and ALLOWED_ORIGINS.")}
+  }
+  if(!gcid)return why("Google sign-in isn't set up on the server (GOOGLE_CLIENT_ID missing, or old server.js).");
+  const go=()=>{google.accounts.id.initialize({client_id:gcid,callback:async r=>{try{const j=await api("google",{credential:r.credential});ses={token:j.token,name:j.name,phone:j.email||"",verified:true,admin:!!j.admin};saveS();ready()}catch(e){const x=$("#ae");if(x)x.textContent=e.message}}});google.accounts.id.renderButton(el,{theme:"filled_black",size:"large",text:"continue_with",shape:"pill",width:300})};
+  if(window.google&&google.accounts)return go();
+  const t=setInterval(()=>{if(window.google&&google.accounts){clearInterval(t);go()}},300);
+  setTimeout(()=>{clearInterval(t);if(!(window.google&&google.accounts))why("Google script didn't load. Turn off ad-blocker or check your connection.")},10000)}
 /* ---- Live settings: API keys, usage, admin (need the backend) ---- */
 const AB=ENV.API_URL.replace(/\/$/,""),nf=n=>Number(n||0).toLocaleString(),liveBox=h=>{const e=$("#live");if(e)e.innerHTML=h};
 async function ax(path,o={}){const r=await fetch(AB+path,{method:o.method||"GET",headers:{"Content-Type":"application/json",Authorization:"Bearer "+ses.token},body:o.body?JSON.stringify(o.body):undefined});if(r.status===401){$("#dlg").close();logout();throw Error("Please log in again.")}const j=await r.json().catch(()=>({}));if(!r.ok)throw Error(j.message||"Something went wrong.");return j}
